@@ -1,0 +1,23 @@
+# Core data
+pandas==2.2.3
+numpy==1.26.4
+requests==2.32.3
+openpyxl==3.1.5         # read NCHS .xlsx
+
+# Database
+sqlalchemy==2.0.36
+
+# Statistics
+scipy==1.14.1
+statsmodels==0.14.4
+scikit-learn==1.5.2
+
+# Visualisation / dashboard
+plotly==5.24.1
+dash==2.18.2
+dash-bootstrap-components==1.6.0
+
+# Airflow (install separately — see README)
+# apache-airflow==2.10.2
+
+# Dev / notebook (jupyterlab already installed system-wide)
