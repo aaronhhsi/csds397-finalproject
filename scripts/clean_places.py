@@ -54,10 +54,11 @@ def clean_places() -> pd.DataFrame:
     print(f"[clean_PLACES] Rows after pivot & dedup: {len(wide):,} "
           f"(dropped {before - len(wide):,} with all-null measures)")
 
-    # ── 5. Save ───────────────────────────────────────────────────────────────
+    # ── 5. Save to DB and CSV ─────────────────────────────────────────────────
+    upsert_dataframe(wide, "places_clean", if_exists="replace")
     out_path = PROCESSED_DIR / "places_clean.csv"
     wide.to_csv(out_path, index=False)
-    print(f"[clean_PLACES] Saved → {out_path}")
+    print(f"[clean_PLACES] Saved → DB (places_clean) + {out_path}")
     return wide
 
 

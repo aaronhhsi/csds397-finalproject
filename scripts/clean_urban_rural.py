@@ -11,7 +11,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from database.db_utils import read_table
+from database.db_utils import read_table, upsert_dataframe
 from config import PROCESSED_DIR, URBAN_CODES
 
 # Non-state FIPS prefixes to exclude (territories)
@@ -36,9 +36,12 @@ def clean_urban_rural() -> pd.DataFrame:
     # ── 4. Confirm is_urban flag matches URBAN_CODES ──────────────────────────
     df["is_urban"] = df["ur_code"].isin(URBAN_CODES).astype(int)
 
+    # Write cleaned data back to DB (replaces what ingest wrote)
+    upsert_dataframe(df, "urban_rural", if_exists="replace")
     out_path = PROCESSED_DIR / "urban_rural_clean.csv"
     df.to_csv(out_path, index=False)
-    print(f"[clean_UR] {len(df):,} counties (urban={df['is_urban'].sum()}) → {out_path}")
+    print(f"[clean_UR] {len(df):,} counties (urban={df['is_urban'].sum()}) "
+          f"→ DB (urban_rural) + {out_path}")
     return df
 
 

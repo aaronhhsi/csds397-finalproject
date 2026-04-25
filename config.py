@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
@@ -5,6 +6,19 @@ DATA_DIR = BASE_DIR / "data"
 RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"
 DB_PATH = BASE_DIR / "health_pipeline.db"
+
+# ── Database ──────────────────────────────────────────────────────────────────
+# Set DATABASE_URL to use a cloud PostgreSQL database (e.g. Neon).
+# If unset, the pipeline falls back to local SQLite (DB_PATH above).
+#
+# Neon connection string format:
+#   postgresql://user:password@ep-xxx.us-east-2.aws.neon.tech/dbname?sslmode=require
+#
+# Set via environment variable (never hard-code credentials):
+#   export DATABASE_URL="postgresql://..."        # Linux/Mac
+#   set DATABASE_URL=postgresql://...             # Windows CMD
+#   $env:DATABASE_URL="postgresql://..."          # PowerShell
+DATABASE_URL: str | None = os.environ.get("DATABASE_URL", None)
 
 # ── CDC PLACES (Socrata API) ──────────────────────────────────────────────────
 # County-level 2024 release (based on 2022 BRFSS data).

@@ -7,25 +7,37 @@ Task graph:
   init_database ──►├─ ingest_chr    ─ clean_chr    ─ ┼─► merge_transform ─► done
                    └─ ingest_urban  ─ clean_urban  ─┘
 
-Schedule: weekly on Sunday at 02:00 UTC (data is updated annually, so this
-          mostly serves as a freshness check / no-op if source hasn't changed).
+Every task writes its output to the SQLite database so that downstream tasks
+and Tableau can read directly from the DB — no CSV hand-offs.
 
-Running locally (outside Airflow UI):
-    python dags/health_pipeline_dag.py   (calls dag.test() for a dry run)
+Schedule: weekly on Sunday at 02:00 UTC.
+
+Setup:
+  1. Set the environment variable HEALTH_PIPELINE_HOME to the project root, e.g.:
+       export HEALTH_PIPELINE_HOME=/path/to/health_pipeline   (Linux/Mac)
+       set HEALTH_PIPELINE_HOME=C:\\path\\to\\health_pipeline  (Windows)
+     Or add it to airflow.cfg under [core] → default_env_vars.
+  2. Copy (or symlink) this file into $AIRFLOW_HOME/dags/
+  3. Enable the DAG in the Airflow UI.
 """
 
+import os
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 
-# Allow imports from project root when running standalone
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# ── Resolve project root ──────────────────────────────────────────────────────
+# Prefer the explicit env var; fall back to the directory above this file.
+_PROJECT_ROOT = Path(
+    os.environ.get("HEALTH_PIPELINE_HOME", Path(__file__).parent.parent)
+)
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-# ── Callables imported from scripts ──────────────────────────────────────────
-from database.db_utils import init_db
+from database.db_utils          import init_db
 from scripts.ingest_places      import run as ingest_places
 from scripts.ingest_chr         import run as ingest_chr
 from scripts.ingest_urban_rural import run as ingest_urban
@@ -34,7 +46,7 @@ from scripts.clean_chr          import clean_chr
 from scripts.clean_urban_rural  import clean_urban_rural
 from scripts.merge_transform    import run as merge_transform
 
-# ── DAG default arguments ─────────────────────────────────────────────────────
+# ── Default arguments ─────────────────────────────────────────────────────────
 default_args = {
     "owner":            "csds397",
     "depends_on_past":  False,
@@ -44,12 +56,12 @@ default_args = {
     "retry_delay":      timedelta(minutes=5),
 }
 
-# ── DAG definition ─────────────────────────────────────────────────────────────
+# ── DAG ───────────────────────────────────────────────────────────────────────
 with DAG(
     dag_id="urban_health_park_pipeline",
-    description="Ingest, clean, and merge CDC PLACES + CHR + NCHS urban-rural data",
+    description="Ingest CDC PLACES + CHR + NCHS → SQLite → county_analysis (Tableau source)",
     default_args=default_args,
-    schedule="0 2 * * 0",          # every Sunday at 02:00 UTC
+    schedule="0 2 * * 0",
     start_date=datetime(2024, 1, 1),
     catchup=False,
     tags=["health", "csds397"],
@@ -59,60 +71,60 @@ with DAG(
     t_init = PythonOperator(
         task_id="init_database",
         python_callable=init_db,
-        doc_md="Create SQLite tables defined in database/schema.sql (idempotent).",
+        doc_md="Create all SQLite tables defined in schema.sql (idempotent).",
     )
 
-    # ── Ingestion ─────────────────────────────────────────────────────────────
+    # ── Ingestion: pull from external sources → raw DB tables ─────────────────
     t_ingest_places = PythonOperator(
         task_id="ingest_places",
         python_callable=ingest_places,
-        doc_md="Download CDC PLACES county data (LPA, OBESITY, CSMOKING) via Socrata API.",
+        doc_md="CDC PLACES API → places_raw table.",
     )
-
     t_ingest_chr = PythonOperator(
         task_id="ingest_chr",
         python_callable=ingest_chr,
-        doc_md="Download County Health Rankings CSV (park access, life expectancy).",
+        doc_md="County Health Rankings CSV → chr_raw table.",
     )
-
     t_ingest_urban = PythonOperator(
         task_id="ingest_urban_rural",
         python_callable=ingest_urban,
-        doc_md="Download NCHS 2013 Urban-Rural Classification Excel from CDC FTP.",
+        doc_md="NCHS Urban-Rural Excel → urban_rural table.",
     )
 
-    # ── Cleaning ──────────────────────────────────────────────────────────────
+    # ── Cleaning: validate + normalise → clean DB tables ─────────────────────
     t_clean_places = PythonOperator(
         task_id="clean_places",
         python_callable=clean_places,
-        doc_md="Pivot, deduplicate, and range-filter PLACES data.",
+        doc_md="Pivot, dedup, range-filter places_raw → places_clean table.",
     )
-
     t_clean_chr = PythonOperator(
         task_id="clean_chr",
         python_callable=clean_chr,
-        doc_md="Range-filter and state-median-impute CHR data.",
+        doc_md="Range-filter + state-median impute chr_raw → chr_clean table.",
     )
-
     t_clean_urban = PythonOperator(
         task_id="clean_urban_rural",
         python_callable=clean_urban_rural,
-        doc_md="Validate NCHS urban-rural codes; exclude territories.",
+        doc_md="Validate codes, drop territories, overwrite urban_rural table.",
     )
 
-    # ── Transform & load ──────────────────────────────────────────────────────
+    # ── Transform: join + feature engineering → county_analysis table ────────
     t_merge = PythonOperator(
         task_id="merge_transform",
         python_callable=merge_transform,
         doc_md=(
-            "Inner-join all three sources on FIPS, engineer derived features, "
-            "and write county_analysis table."
+            "Inner-join places_clean × chr_clean, left-join urban_rural. "
+            "Engineer inactivity_zscore, le_deficit, park_quartile, ur_label. "
+            "Write final county_analysis table — this is the Tableau data source."
         ),
     )
 
     t_done = PythonOperator(
-        task_id="done",
-        python_callable=lambda: print("[DAG] Pipeline finished successfully."),
+        task_id="pipeline_complete",
+        python_callable=lambda: print(
+            "[DAG] Pipeline complete. "
+            "Tableau source: county_analysis / v_county_analysis view in health_pipeline.db"
+        ),
     )
 
     # ── Dependencies ──────────────────────────────────────────────────────────
@@ -125,6 +137,5 @@ with DAG(
     [t_clean_places, t_clean_chr, t_clean_urban] >> t_merge >> t_done
 
 
-# ── Standalone dry-run ────────────────────────────────────────────────────────
 if __name__ == "__main__":
     dag.test()

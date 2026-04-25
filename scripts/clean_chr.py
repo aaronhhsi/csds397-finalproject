@@ -14,7 +14,7 @@ import pandas as pd
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from database.db_utils import read_table
+from database.db_utils import read_table, upsert_dataframe
 from config import PROCESSED_DIR
 
 NUMERIC_COLS = ["park_access_pct", "life_expectancy", "inactivity_chk", "smoking_chk"]
@@ -60,9 +60,10 @@ def clean_chr() -> pd.DataFrame:
     # ── 4. Drop duplicate FIPS ────────────────────────────────────────────────
     df = df.drop_duplicates(subset=["fips"], keep="last")
 
+    upsert_dataframe(df, "chr_clean", if_exists="replace")
     out_path = PROCESSED_DIR / "chr_clean.csv"
     df.to_csv(out_path, index=False)
-    print(f"[clean_CHR] {len(df):,} counties saved → {out_path}")
+    print(f"[clean_CHR] {len(df):,} counties saved → DB (chr_clean) + {out_path}")
     return df
 
 
