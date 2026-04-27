@@ -38,8 +38,7 @@ def _load_clean_places() -> pd.DataFrame:
     df = read_table("places_raw")
     df = df.dropna(subset=["fips", "measure_id", "data_value"])
     df = df[df["data_value"].between(0, 100)]
-    df = (df.sort_values("year", ascending=False)
-            .drop_duplicates(subset=["fips", "measure_id"]))
+    df = df.drop_duplicates(subset=["fips", "measure_id"])
     wide = (df.pivot_table(
                 index=["fips", "state_abbr", "county_name"],
                 columns="measure_id",
