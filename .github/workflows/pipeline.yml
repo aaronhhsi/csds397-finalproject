@@ -28,9 +28,6 @@ jobs:
       - name: Create data directories
         run: mkdir -p data/raw data/processed
 
-      - name: Upload places_full.csv to Neon for debugging
-        run: python scripts/upload_places_debug.py
-
       - name: Run pipeline
         run: python run_pipeline.py
 

@@ -3,17 +3,17 @@ Merge cleaned datasets and build the final county_analysis table.
 
 Join strategy (all on 5-digit FIPS):
   PLACES (inactivity, obesity, smoking)
-  + CHR   (park access, life expectancy)
+  + CHR   (park access, life expectancy, inactivity fallback)
   + Urban-Rural (ur_code, is_urban)
+
+PLACES × CHR is a full outer join so counties absent from CDC PLACES
+(KY, PA) still appear. Their inactivity_rate comes from CHR (inactivity_chk);
+obesity_rate and smoking_rate will be null for those counties.
 
 Derived / engineered features:
   - inactivity_zscore: z-score of inactivity_rate within urban counties
   - le_deficit: national median life expectancy minus county life expectancy
   - park_quartile: quartile bin of park_access_pct (Q1–Q4)
-
-PLACES is the left spine. CHR and Urban-Rural are left-joined so counties
-missing from either source still appear (useful for the national map).
-Counties used in H1/H2 analysis are those with non-null CHR values.
 """
 
 import sys
@@ -72,13 +72,25 @@ def merge_datasets() -> pd.DataFrame:
     chr_df  = _load_clean_chr()
     ur      = _load_clean_ur()
 
-    # PLACES × CHR: left join so counties missing from CHR still appear on the map
+    # PLACES × CHR: outer join so CHR-only counties (KY, PA) still appear
     df = places.merge(
-        chr_df[["fips", "park_access_pct", "life_expectancy"]],
-        on="fips", how="left"
+        chr_df[["fips", "state_abbr", "county_name",
+                "park_access_pct", "life_expectancy", "inactivity_chk"]],
+        on="fips", how="outer", suffixes=("_places", "_chr")
     )
-    matched = df["park_access_pct"].notna().sum()
-    print(f"[merge] {len(df):,} total counties, {matched:,} with CHR data")
+
+    # For counties missing from PLACES, fill identity columns from CHR
+    df["state_abbr"]  = df["state_abbr_places"].combine_first(df["state_abbr_chr"])
+    df["county_name"] = df["county_name_places"].combine_first(df["county_name_chr"])
+    # inactivity_rate comes from PLACES; fall back to CHR for KY/PA
+    df["inactivity_rate"] = df["inactivity_rate"].combine_first(df["inactivity_chk"])
+    df = df.drop(columns=["state_abbr_places", "state_abbr_chr",
+                           "county_name_places", "county_name_chr", "inactivity_chk"])
+
+    places_count = df["obesity_rate"].notna().sum()
+    chr_fallback  = df["inactivity_rate"].notna().sum() - places_count
+    print(f"[merge] {len(df):,} total counties — "
+          f"{places_count:,} from PLACES, {chr_fallback:,} inactivity from CHR fallback")
 
     # Urban-rural: left join so missing codes don't discard counties
     df = df.merge(
