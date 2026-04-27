@@ -25,7 +25,7 @@ DATABASE_URL: str | None = os.environ.get("DATABASE_URL", None)
 # If Socrata returns a 404, visit https://data.cdc.gov/browse and search
 # "PLACES County" to find the current dataset ID.
 PLACES_BASE_URL = "https://data.cdc.gov/resource"
-PLACES_DATASET_ID = "swc5-untb"          # 2024 county-level release
+PLACES_DATASET_ID = "swc5-untb"   # county-level release
 PLACES_APP_TOKEN = ""                    # Optional: register at data.cdc.gov for higher rate limits
 PLACES_MEASURES = ["LPA", "OBESITY", "CSMOKING"]   # inactivity, obesity, smoking
 PLACES_PAGE_SIZE = 50_000               # Socrata hard cap is 50 000 per request

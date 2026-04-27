@@ -79,7 +79,6 @@ def fetch_places_data() -> pd.DataFrame:
     url = f"{PLACES_BASE_URL}/{PLACES_DATASET_ID}.json"
 
     with requests.Session() as session:
-        # ── Discover real column names ────────────────────────────────────────
         print(f"[PLACES] Sniffing columns from {url} …")
         try:
             cols = _sniff_columns(session, url)
@@ -93,16 +92,13 @@ def fetch_places_data() -> pd.DataFrame:
 
         print(f"[PLACES] Columns found: {cols}")
 
-        # ── Identify key columns ──────────────────────────────────────────────
-        measure_col   = _find_col(cols, "measure", "id") or _find_col(cols, "measure")
-        geo_col       = _find_col(cols, "geographic", "level")
-        location_col  = _find_col(cols, "location", "id") or _find_col(cols, "fips")
+        measure_col  = _find_col(cols, "measure", "id") or _find_col(cols, "measure")
+        geo_col      = _find_col(cols, "geographic", "level")
+        location_col = _find_col(cols, "location", "id") or _find_col(cols, "fips")
 
         print(f"[PLACES] measure_col={measure_col}, geo_col={geo_col}, "
               f"location_col={location_col}")
 
-        # ── Build WHERE clause ────────────────────────────────────────────────
-        # Filter to county level if the column exists; filter by target measures.
         measures_sql = ", ".join(f"'{m}'" for m in PLACES_MEASURES)
         where_parts = []
         if geo_col:
@@ -112,8 +108,6 @@ def fetch_places_data() -> pd.DataFrame:
         where = " AND ".join(where_parts) if where_parts else None
 
         print(f"[PLACES] WHERE clause: {where}")
-
-        # ── Fetch all pages ───────────────────────────────────────────────────
         all_rows = _fetch_all_pages(session, url, where, location_col)
 
     df = pd.DataFrame(all_rows)
