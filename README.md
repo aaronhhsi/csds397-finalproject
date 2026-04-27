@@ -4,9 +4,10 @@ CSDS 397 Final Project
 
 ## What This Uses
 
-- **Neon** — free cloud PostgreSQL database (the pipeline writes here; Tableau reads from here)
-- **GitHub Actions** — runs the pipeline automatically every Sunday at 02:00 UTC
-- **Apache Airflow** — DAG definition lives in `dags/`; optional for local orchestration
+- **Astronomer (Astro)** — managed Apache Airflow cloud platform; hosts the DAG, scheduler, and public Airflow UI
+- **Apache Airflow** — orchestrates and schedules the pipeline; DAG definition lives in `dags/`
+- **Neon** — free cloud PostgreSQL database; the pipeline writes here and Tableau reads from here
+- **GitHub Actions** — automatically deploys updated DAG code to Astronomer on every push to `main`
 - **Tableau Desktop** — connects directly to Neon via the built-in PostgreSQL connector
 
 ## Prerequisites
@@ -46,11 +47,22 @@ python run_pipeline.py --dry           # print steps without running
 
 Steps: `1 init_db → 2 ingest_places_csv → 3 ingest_chr → 4 ingest_urban_rural → 5 clean_places → 6 clean_chr → 7 clean_urban_rural → 8 merge_transform → 9 run_analysis`
 
-## Cloud (Neon + GitHub Actions)
+## Cloud Setup (Astronomer + Neon)
+
+### Neon (database)
 
 1. Create a free project at [neon.tech](https://neon.tech) and copy the connection string
-2. In your GitHub repo: **Settings → Secrets → Actions → New secret** — name it `DATABASE_URL`, paste the connection string
-3. Push this repo to GitHub — Actions runs automatically on Sundays or via **Actions → Run workflow**
+
+### Astronomer (Airflow)
+
+1. Create a free account at [astronomer.io](https://astronomer.io) and create a Deployment
+2. Connect your GitHub repo under **Git** settings — set branch to `main`
+3. In your Deployment → add environment variable `DATABASE_URL` set to your Neon connection string
+4. In your GitHub repo: **Settings → Secrets → Actions** — add:
+   - `ASTRONOMER_DEPLOYMENT_ID` — from your Astronomer deployment page
+   - `ASTRONOMER_API_TOKEN` — from Deployment → Access → API Tokens
+
+Every push to `main` automatically deploys updated code to Astronomer via GitHub Actions. Trigger a manual DAG run from the Astronomer Airflow UI.
 
 ## Connecting Tableau
 
@@ -65,7 +77,13 @@ Steps: `1 init_db → 2 ingest_places_csv → 3 ingest_chr → 4 ingest_urban_ru
 health_pipeline/
 ├── config.py
 ├── run_pipeline.py
-├── dags/health_pipeline_dag.py
+├── Dockerfile                   ← Astro runtime image definition
+├── packages.txt                 ← System packages for Astro build
+├── dags/health_pipeline_dag.py  ← Airflow DAG
+├── .astro/config.yaml           ← Astronomer project config
+├── .github/workflows/
+│   ├── pipeline.yml             ← GitHub Actions: run pipeline (local/backup)
+│   └── astronomer_deploy.yml    ← GitHub Actions: deploy to Astronomer
 ├── scripts/
 │   ├── ingest_places_csv.py
 │   ├── ingest_chr.py
