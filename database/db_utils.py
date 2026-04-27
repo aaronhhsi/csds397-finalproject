@@ -49,7 +49,25 @@ def init_db(db_path: Path = DB_PATH) -> None:
 def upsert_dataframe(df: pd.DataFrame, table: str, db_path: Path = DB_PATH,
                      if_exists: str = "append") -> None:
     engine = get_engine(db_path)
-    df.to_sql(table, engine, if_exists=if_exists, index=False)
+
+    if if_exists == "replace" and engine.dialect.name == "postgresql":
+        # PostgreSQL: can't DROP a table that has dependent views.
+        # TRUNCATE preserves the table structure (and the view) then re-insert.
+        with engine.begin() as conn:
+            exists = conn.execute(text(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = 'public' AND table_name = :t)"
+            ), {"t": table}).scalar()
+
+        if exists:
+            with engine.begin() as conn:
+                conn.execute(text(f"TRUNCATE TABLE {table}"))
+            df.to_sql(table, engine, if_exists="append", index=False)
+        else:
+            df.to_sql(table, engine, if_exists="replace", index=False)
+    else:
+        df.to_sql(table, engine, if_exists=if_exists, index=False)
+
     print(f"[db] Wrote {len(df):,} rows → {table}")
 
 
