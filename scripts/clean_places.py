@@ -4,7 +4,7 @@ Clean the CDC PLACES data already loaded into places_raw.
 Steps:
   1. Pivot from long format (one row per measure) to wide format (one row per county).
   2. Drop counties with data_value outside plausible range (0–100 %).
-  3. Flag and remove duplicate FIPS / measure pairs (keep most recent year).
+  3. Deduplicate FIPS / measure pairs (keep first).
   4. Write cleaned wide-format data back to database (used by merge step).
 """
 
@@ -33,9 +33,8 @@ def clean_places() -> pd.DataFrame:
     df = df.dropna(subset=["fips", "measure_id", "data_value"])
     df = df[df["data_value"].between(0, 100)]
 
-    # ── 2. Keep the most recent year when a county appears twice ─────────────
-    df = (df.sort_values("year", ascending=False)
-            .drop_duplicates(subset=["fips", "measure_id"], keep="first"))
+    # ── 2. Deduplicate FIPS / measure pairs ──────────────────────────────────
+    df = df.drop_duplicates(subset=["fips", "measure_id"], keep="first")
 
     # ── 3. Pivot to wide format ───────────────────────────────────────────────
     wide = (df.pivot_table(

@@ -3,9 +3,9 @@ Apache Airflow DAG — Urban Health & Park Access Pipeline
 =========================================================
 
 Task graph:
-                   ┌─ ingest_places ─ clean_places ─┐
-  init_database ──►├─ ingest_chr    ─ clean_chr    ─ ┼─► merge_transform ─► done
-                   └─ ingest_urban  ─ clean_urban  ─┘
+                   ┌─ ingest_places_csv ─ clean_places ─┐
+  init_database ──►├─ ingest_chr        ─ clean_chr    ─ ┼─► merge_transform ─► done
+                   └─ ingest_urban      ─ clean_urban  ─┘
 
 Every task writes its output to the SQLite database so that downstream tasks
 and Tableau can read directly from the DB — no CSV hand-offs.
@@ -38,10 +38,9 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 
 from database.db_utils           import init_db
-from scripts.ingest_places       import run as ingest_places
+from scripts.ingest_places_csv   import run as ingest_places_csv
 from scripts.ingest_chr          import run as ingest_chr
 from scripts.ingest_urban_rural  import run as ingest_urban
-from scripts.ingest_places_csv   import run as ingest_places_csv
 from scripts.clean_places        import clean_places
 from scripts.clean_chr           import clean_chr
 from scripts.clean_urban_rural   import clean_urban_rural
@@ -76,10 +75,10 @@ with DAG(
     )
 
     # ── Ingestion: pull from external sources → raw DB tables ─────────────────
-    t_ingest_places = PythonOperator(
-        task_id="ingest_places",
-        python_callable=ingest_places,
-        doc_md="CDC PLACES API → places_raw table.",
+    t_ingest_places_csv = PythonOperator(
+        task_id="ingest_places_csv",
+        python_callable=ingest_places_csv,
+        doc_md="CDC PLACES full CSV (data/raw/places_full.csv) → places_raw table.",
     )
     t_ingest_chr = PythonOperator(
         task_id="ingest_chr",
@@ -90,12 +89,6 @@ with DAG(
         task_id="ingest_urban_rural",
         python_callable=ingest_urban,
         doc_md="NCHS Urban-Rural Excel → urban_rural table.",
-    )
-
-    t_ingest_places_csv = PythonOperator(
-        task_id="ingest_places_csv",
-        python_callable=ingest_places_csv,
-        doc_md="Supplement API data with data/raw/places_full.csv (KY, PA). No-op if file absent.",
     )
 
     # ── Cleaning: validate + normalise → clean DB tables ─────────────────────
@@ -135,11 +128,11 @@ with DAG(
     )
 
     # ── Dependencies ──────────────────────────────────────────────────────────
-    t_init >> [t_ingest_places, t_ingest_chr, t_ingest_urban]
+    t_init >> [t_ingest_places_csv, t_ingest_chr, t_ingest_urban]
 
-    t_ingest_places >> t_ingest_places_csv >> t_clean_places
-    t_ingest_chr    >> t_clean_chr
-    t_ingest_urban  >> t_clean_urban
+    t_ingest_places_csv >> t_clean_places
+    t_ingest_chr        >> t_clean_chr
+    t_ingest_urban      >> t_clean_urban
 
     [t_clean_places, t_clean_chr, t_clean_urban] >> t_merge >> t_done
 

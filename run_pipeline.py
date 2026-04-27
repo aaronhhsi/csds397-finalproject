@@ -10,15 +10,14 @@ Usage:
 
 Steps:
   1   init_db
-  2   ingest_places
+  2   ingest_places_csv     (data/raw/places_full.csv → places_raw)
   3   ingest_chr
   4   ingest_urban_rural
-  5   ingest_places_csv     (supplements API data from data/raw/places_full.csv)
-  6   clean_places
-  7   clean_chr
-  8   clean_urban_rural
-  9   merge_transform
-  10  run_analysis
+  5   clean_places
+  6   clean_chr
+  7   clean_urban_rural
+  8   merge_transform
+  9   run_analysis
 """
 
 import argparse
@@ -29,10 +28,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from database.db_utils               import init_db
-from scripts.ingest_places           import run as ingest_places
+from scripts.ingest_places_csv       import run as ingest_places_csv
 from scripts.ingest_chr              import run as ingest_chr
 from scripts.ingest_urban_rural      import run as ingest_urban_rural
-from scripts.ingest_places_csv       import run as ingest_places_csv
 from scripts.clean_places            import clean_places
 from scripts.clean_chr               import clean_chr
 from scripts.clean_urban_rural       import clean_urban_rural
@@ -41,15 +39,14 @@ from analysis.hypotheses             import run_all as run_analysis
 
 STEPS = [
     (1,  "init_db",             init_db),
-    (2,  "ingest_places",       ingest_places),
+    (2,  "ingest_places_csv",   ingest_places_csv),
     (3,  "ingest_chr",          ingest_chr),
     (4,  "ingest_urban_rural",  ingest_urban_rural),
-    (5,  "ingest_places_csv",   ingest_places_csv),
-    (6,  "clean_places",        clean_places),
-    (7,  "clean_chr",           clean_chr),
-    (8,  "clean_urban_rural",   clean_urban_rural),
-    (9,  "merge_transform",     merge_transform),
-    (10, "run_analysis",        run_analysis),
+    (5,  "clean_places",        clean_places),
+    (6,  "clean_chr",           clean_chr),
+    (7,  "clean_urban_rural",   clean_urban_rural),
+    (8,  "merge_transform",     merge_transform),
+    (9,  "run_analysis",        run_analysis),
 ]
 
 
