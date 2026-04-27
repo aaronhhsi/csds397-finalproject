@@ -11,8 +11,9 @@ Derived / engineered features:
   - le_deficit: national median life expectancy minus county life expectancy
   - park_quartile: quartile bin of park_access_pct (Q1–Q4)
 
-Only counties present in all three sources are kept (inner join).
-State-level rows (FIPS ending in "000") are excluded.
+PLACES is the left spine. CHR and Urban-Rural are left-joined so counties
+missing from either source still appear (useful for the national map).
+Counties used in H1/H2 analysis are those with non-null CHR values.
 """
 
 import sys
@@ -72,12 +73,13 @@ def merge_datasets() -> pd.DataFrame:
     chr_df  = _load_clean_chr()
     ur      = _load_clean_ur()
 
-    # PLACES × CHR: inner join (both required for core analysis)
+    # PLACES × CHR: left join so counties missing from CHR still appear on the map
     df = places.merge(
         chr_df[["fips", "park_access_pct", "life_expectancy"]],
-        on="fips", how="inner"
+        on="fips", how="left"
     )
-    print(f"[merge] {len(df):,} counties after PLACES ∩ CHR")
+    matched = df["park_access_pct"].notna().sum()
+    print(f"[merge] {len(df):,} total counties, {matched:,} with CHR data")
 
     # Urban-rural: left join so missing codes don't discard counties
     df = df.merge(
