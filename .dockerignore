@@ -1,0 +1,8 @@
+.git
+airflow-env
+__pycache__
+*.pyc
+*.pyo
+data/processed
+health_pipeline.db
+.env
