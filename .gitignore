@@ -2,7 +2,6 @@ __pycache__/
 *.pyc
 *.pyo
 
-data/raw/
 data/processed/
 health_pipeline.db
 

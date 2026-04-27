@@ -2,20 +2,23 @@
 Run the full pipeline locally without Airflow.
 
 Usage:
-    python run_pipeline.py            # full run
-    python run_pipeline.py --step 3  # resume from step 3
-    python run_pipeline.py --dry     # print step plan only
+    python run_pipeline.py                    # full run
+    python run_pipeline.py --step 3           # resume from step 3
+    python run_pipeline.py --step 1 --through 4  # run steps 1–4 only
+    python run_pipeline.py --only 9           # run only step 9
+    python run_pipeline.py --dry              # print step plan only
 
 Steps:
-  1  init_db
-  2  ingest_places
-  3  ingest_chr
-  4  ingest_urban_rural
-  5  clean_places
-  6  clean_chr
-  7  clean_urban_rural
-  8  merge_transform
-  9  run_analysis
+  1   init_db
+  2   ingest_places
+  3   ingest_chr
+  4   ingest_urban_rural
+  5   ingest_places_csv     (supplements API data from data/raw/places_full.csv)
+  6   clean_places
+  7   clean_chr
+  8   clean_urban_rural
+  9   merge_transform
+  10  run_analysis
 """
 
 import argparse
@@ -25,26 +28,28 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from database.db_utils import init_db
-from scripts.ingest_places      import run as ingest_places
-from scripts.ingest_chr         import run as ingest_chr
-from scripts.ingest_urban_rural import run as ingest_urban_rural
-from scripts.clean_places       import clean_places
-from scripts.clean_chr          import clean_chr
-from scripts.clean_urban_rural  import clean_urban_rural
-from scripts.merge_transform    import run as merge_transform
-from analysis.hypotheses        import run_all as run_analysis
+from database.db_utils               import init_db
+from scripts.ingest_places           import run as ingest_places
+from scripts.ingest_chr              import run as ingest_chr
+from scripts.ingest_urban_rural      import run as ingest_urban_rural
+from scripts.ingest_places_csv       import run as ingest_places_csv
+from scripts.clean_places            import clean_places
+from scripts.clean_chr               import clean_chr
+from scripts.clean_urban_rural       import clean_urban_rural
+from scripts.merge_transform         import run as merge_transform
+from analysis.hypotheses             import run_all as run_analysis
 
 STEPS = [
-    (1,  "init_db",            init_db),
-    (2,  "ingest_places",      ingest_places),
-    (3,  "ingest_chr",         ingest_chr),
-    (4,  "ingest_urban_rural", ingest_urban_rural),
-    (5,  "clean_places",       clean_places),
-    (6,  "clean_chr",          clean_chr),
-    (7,  "clean_urban_rural",  clean_urban_rural),
-    (8,  "merge_transform",    merge_transform),
-    (9,  "run_analysis",       run_analysis),
+    (1,  "init_db",             init_db),
+    (2,  "ingest_places",       ingest_places),
+    (3,  "ingest_chr",          ingest_chr),
+    (4,  "ingest_urban_rural",  ingest_urban_rural),
+    (5,  "ingest_places_csv",   ingest_places_csv),
+    (6,  "clean_places",        clean_places),
+    (7,  "clean_chr",           clean_chr),
+    (8,  "clean_urban_rural",   clean_urban_rural),
+    (9,  "merge_transform",     merge_transform),
+    (10, "run_analysis",        run_analysis),
 ]
 
 
@@ -52,15 +57,18 @@ def main():
     parser = argparse.ArgumentParser(description="Run health data pipeline")
     parser.add_argument("--step", type=int, default=1,
                         help="Start from this step number (default: 1)")
+    parser.add_argument("--through", type=int, default=None,
+                        help="Stop after this step number (inclusive)")
     parser.add_argument("--only", type=int, default=None,
                         help="Run only this step number")
     parser.add_argument("--dry", action="store_true",
                         help="Print steps without running them")
     args = parser.parse_args()
 
+    end = args.through or max(n for n, _, _ in STEPS)
     to_run = [(n, name, fn) for n, name, fn in STEPS
               if (args.only and n == args.only) or
-                 (not args.only and n >= args.step)]
+                 (not args.only and args.step <= n <= end)]
 
     if args.dry:
         print("Steps to run:")

@@ -37,14 +37,15 @@ if str(_PROJECT_ROOT) not in sys.path:
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-from database.db_utils          import init_db
-from scripts.ingest_places      import run as ingest_places
-from scripts.ingest_chr         import run as ingest_chr
-from scripts.ingest_urban_rural import run as ingest_urban
-from scripts.clean_places       import clean_places
-from scripts.clean_chr          import clean_chr
-from scripts.clean_urban_rural  import clean_urban_rural
-from scripts.merge_transform    import run as merge_transform
+from database.db_utils           import init_db
+from scripts.ingest_places       import run as ingest_places
+from scripts.ingest_chr          import run as ingest_chr
+from scripts.ingest_urban_rural  import run as ingest_urban
+from scripts.ingest_places_csv   import run as ingest_places_csv
+from scripts.clean_places        import clean_places
+from scripts.clean_chr           import clean_chr
+from scripts.clean_urban_rural   import clean_urban_rural
+from scripts.merge_transform     import run as merge_transform
 
 # ── Default arguments ─────────────────────────────────────────────────────────
 default_args = {
@@ -91,6 +92,12 @@ with DAG(
         doc_md="NCHS Urban-Rural Excel → urban_rural table.",
     )
 
+    t_ingest_places_csv = PythonOperator(
+        task_id="ingest_places_csv",
+        python_callable=ingest_places_csv,
+        doc_md="Supplement API data with data/raw/places_full.csv (KY, PA). No-op if file absent.",
+    )
+
     # ── Cleaning: validate + normalise → clean DB tables ─────────────────────
     t_clean_places = PythonOperator(
         task_id="clean_places",
@@ -130,7 +137,7 @@ with DAG(
     # ── Dependencies ──────────────────────────────────────────────────────────
     t_init >> [t_ingest_places, t_ingest_chr, t_ingest_urban]
 
-    t_ingest_places >> t_clean_places
+    t_ingest_places >> t_ingest_places_csv >> t_clean_places
     t_ingest_chr    >> t_clean_chr
     t_ingest_urban  >> t_clean_urban
 
