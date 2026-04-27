@@ -7,6 +7,7 @@ openpyxl>=3.1.5         # read NCHS .xlsx
 # Database
 sqlalchemy>=2.0.36
 psycopg2-binary>=2.9.10   # PostgreSQL driver (used when DATABASE_URL is set)
+pyarrow>=17.0.0            # Airflow 3.x XCom serialization
 
 # Statistics
 scipy>=1.14.1
